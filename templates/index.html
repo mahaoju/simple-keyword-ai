@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simple AI</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:system-ui}
+body{max-width:760px;margin:24px auto;padding:0 16px;background:#f7f8fa}
+.container{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px #00000012}
+.chatview{height:440px;padding:16px;overflow-y:auto;border-bottom:1px solid #eee}
+.msgrow{margin:10px 0}
+.user{text-align:right}
+.aibubble{display:inline-block;background:#eef0f3;padding:9px 13px;border-radius:12px;max-width:82%}
+.userbubble{display:inline-block;background:#0071e3;color:#fff;padding:9px 13px;border-radius:12px;max-width:82%}
+.inputbar{display:flex;padding:12px;gap:8px}
+#msginput{flex:1;padding:10px 12px;border:1px solid #ddd;border-radius:10px;font-size:16px;outline:none}
+#sendbtn{padding:10px 16px;background:#0071e3;color:#fff;border:none;border-radius:10px;cursor:pointer}
+.setbtn{margin:14px 0;padding:9px 14px;border:1px solid #ddd;border-radius:10px;background:#fff;cursor:pointer}
+.setpanel{display:none;border:1px solid #ddd;border-radius:12px;padding:16px;margin-top:12px;background:#fff}
+.langsel{width:100%;padding:9px;border-radius:8px;border:1px solid #ddd;margin-bottom:14px}
+.delbtn{padding:10px 14px;background:#ff3b30;color:#fff;border:none;border-radius:10px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="chatview" id="chatbox"></div>
+<div class="inputbar">
+<input id="msginput" placeholder="">
+<button id="sendbtn"></button>
+</div>
+</div>
+<button class="setbtn" id="settingBtn"></button>
+<div class="setpanel" id="settingPanel">
+<select class="langsel" id="langSelect"></select>
+<br>
+<button class="delbtn" id="wipeBtn"></button>
+</div>
+
+<script>
+const config = {{config|tojson}};
+const langList = {{langlist|tojson}};
+let currentLang = config.lang;
+let wiped = config.wiped;
+const texts = {
+"zh-CN":{"send":"发送","setting":"设置","delapp":"删除应用"},
+"zh-TW":{"send":"傳送","setting":"設定","delapp":"刪除應用"},
+"en":{"send":"Send","setting":"Settings","delapp":"Delete App"},
+"ja":{"send":"送信","setting":"設定","delapp":"アプリ削除"},
+"ko":{"send":"전송","setting":"설정","delapp":"앱 삭제"},
+"ru":{"send":"Отправить","setting":"Настройки","delapp":"Удалить приложение"},
+"fr":{"send":"Envoyer","setting":"Paramètres","delapp":"Supprimer l'app"},
+"de":{"send":"Senden","setting":"Einstellungen","delapp":"App löschen"},
+"es":{"send":"Enviar","setting":"Ajustes","delapp":"Borrar app"},
+"pt":{"send":"Enviar","setting":"Configurações","delapp":"Apagar app"},
+"it":{"send":"Invia","setting":"Impostazioni","delapp":"Elimina app"},
+"nl":{"send":"Versturen","setting":"Instellingen","delapp":"App verwijderen"},
+"pl":{"send":"Wyślij","setting":"Ustawienia","delapp":"Usuń aplikację"},
+"eo":{"send":"Sendi","setting":"Agordoj","delapp":"Forigi Apon"}
+};
+function renderText(){
+    document.getElementById("sendbtn").innerText=texts[currentLang].send;
+    document.getElementById("settingBtn").innerText=texts[currentLang].setting;
+    document.getElementById("wipeBtn").innerText=texts[currentLang].delapp;
+}
+function fillLangSelect(){
+    const sel = document.getElementById("langSelect");
+    sel.innerHTML = "";
+    Object.keys(langList).forEach(k=>{
+        const opt = document.createElement("option");
+        opt.value = k;
+        opt.innerText = langList[k].name;
+        if(k===currentLang) opt.selected=true;
+        sel.appendChild(opt);
+    })
+}
+function addMsg(text,isUser){
+    const box = document.getElementById("chatbox");
+    const div = document.createElement("div");
+    div.className = "msgrow "+(isUser?"user":"");
+    const span = document.createElement("span");
+    span.className = isUser?"userbubble":"aibubble";
+    span.innerText = text;
+    div.appendChild(span);
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+}
+async function sendMessage(){
+    const input = document.getElementById("msginput");
+    const txt = input.value.trim();
+    if(!txt) return;
+    addMsg(txt,true);
+    input.value="";
+    const res = await fetch("/chat",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({msg:txt})
+    });
+    const data = await res.json();
+    addMsg(data.reply,false);
+}
+async function changeLang(newlang){
+    await fetch("/setlang",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({lang:newlang})
+    });
+    currentLang = newlang;
+    renderText();
+}
+async function wipeAll(){
+    const box = document.getElementById("chatbox");
+    const childs = Array.from(box.children);
+    for(let i=childs.length-1;i>=0;i--){
+        await new Promise(r=>setTimeout(r,120));
+        childs[i].remove();
+    }
+    await fetch("/wipe",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+}
+document.getElementById("sendbtn").onclick = sendMessage;
+document.getElementById("msginput").onkeydown = e=>{if(e.key==="Enter") sendMessage()};
+document.getElementById("settingBtn").onclick = ()=>{
+    const p = document.getElementById("settingPanel");
+    p.style.display = p.style.display==="block"?"none":"block";
+};
+document.getElementById("langSelect").onchange = e=>changeLang(e.target.value);
+document.getElementById("wipeBtn").onclick = wipeAll;
+renderText();
+fillLangSelect();
+if(wiped){
+    document.getElementById("chatbox").innerHTML = "";
+}
+</script>
+</body>
+</html>
